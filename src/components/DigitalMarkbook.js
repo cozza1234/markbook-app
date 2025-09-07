@@ -7,7 +7,7 @@ const DigitalMarkbook = () => {
     {
       id: 1,
       name: "Emma Johnson",
-      house: "Dragons",
+      house: "Chatsworth",
       status: "Active",
       data: {
         housePoints: {},
@@ -18,7 +18,7 @@ const DigitalMarkbook = () => {
     {
       id: 2,
       name: "Oliver Smith",
-      house: "Eagles",
+      house: "Haddon",
       status: "Active",
       data: {
         housePoints: {},
@@ -31,7 +31,7 @@ const DigitalMarkbook = () => {
   const [weeks, setWeeks] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
-  const [newStudent, setNewStudent] = useState({ name: '', house: 'Dragons', status: 'Active' });
+  const [newStudent, setNewStudent] = useState({ name: '', house: 'Chatsworth', status: 'Active' });
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [activeView, setActiveView] = useState('overview');
   const [newWeekName, setNewWeekName] = useState('');
@@ -42,7 +42,7 @@ const DigitalMarkbook = () => {
     homeworkCompleted: true
   });
 
-  const houses = ['Dragons', 'Eagles', 'Lions', 'Phoenix'];
+  const houses = ['Chatsworth', 'Haddon', 'Hardwick', 'Kedleston'];
   const metrics = [
     { key: 'housePoints', label: 'House Points', icon: Star, color: '#f59e0b' },
     { key: 'readingSessions', label: 'Reading Sessions', icon: BookOpen, color: '#10b981' },
@@ -134,7 +134,7 @@ const DigitalMarkbook = () => {
         }
       };
       setStudents([...students, student]);
-      setNewStudent({ name: '', house: 'Dragons', status: 'Active' });
+      setNewStudent({ name: '', house: 'Chatsworth', status: 'Active' });
       setShowAddStudent(false);
     }
   };
@@ -205,10 +205,10 @@ const DigitalMarkbook = () => {
 
   const getHouseColor = (house) => {
     const colors = {
-      Dragons: '#ef4444',
-      Eagles: '#3b82f6',
-      Lions: '#f59e0b',
-      Phoenix: '#8b5cf6'
+      Chatsworth: '#069728ff',
+      Haddon: '#f10404ff',
+      Hardwick: '#2a0bf5ff',
+      Kedleston: '#6e4bc0ff'
     };
     return colors[house] || '#6b7280';
   };
