@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Minus, BarChart3, Users, BookOpen, Star, Edit2, Save, X, Calendar, Download, Upload } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Minus, BarChart3, Users, BookOpen, Star, Edit2, Save, X, Calendar, Download, Upload, Cloud, Trash2, RefreshCw, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 const DigitalMarkbook = () => {
@@ -42,12 +42,24 @@ const DigitalMarkbook = () => {
     homeworkCompleted: true
   });
 
+  // New state for Vercel Blob features
+  const [savedFiles, setSavedFiles] = useState([]);
+  const [showSavedFiles, setShowSavedFiles] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [customFilename, setCustomFilename] = useState('');
+
   const houses = ['Chatsworth', 'Haddon', 'Hardwick', 'Kedleston'];
   const metrics = [
     { key: 'housePoints', label: 'House Points', icon: Star, color: '#f59e0b' },
     { key: 'readingSessions', label: 'Reading Sessions', icon: BookOpen, color: '#10b981' },
     { key: 'homeworkCompleted', label: 'Homework Completed', icon: Edit2, color: '#6366f1' }
   ];
+
+  // Load saved files on component mount
+  useEffect(() => {
+    loadSavedFiles();
+  }, []);
 
   const calculateAverage = (studentData, metric) => {
     const values = weeks.map(week => studentData[metric][week] || 0).filter(val => val > 0);
@@ -64,6 +76,134 @@ const DigitalMarkbook = () => {
     return `Week ${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
   };
 
+  // New Vercel Blob functions
+  const saveToVercelBlob = async () => {
+    setIsLoading(true);
+    setSaveStatus('Saving...');
+
+    try {
+      const data = {
+        students,
+        weeks,
+        visibleMetrics,
+        exportDate: new Date().toISOString()
+      };
+
+      const filename = customFilename.trim() || `markbook-${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}`;
+
+      const response = await fetch('/api/markbook/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data,
+          filename
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSaveStatus('Saved successfully!');
+        setCustomFilename('');
+        await loadSavedFiles(); // Refresh the files list
+        setTimeout(() => setSaveStatus(''), 3000);
+      } else {
+        throw new Error(result.error || 'Failed to save');
+      }
+    } catch (error) {
+      console.error('Error saving:', error);
+      setSaveStatus('Error saving data');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadSavedFiles = async () => {
+    try {
+      const response = await fetch('/api/markbook/load');
+      const result = await response.json();
+
+      if (result.success) {
+        setSavedFiles(result.files || []);
+      }
+    } catch (error) {
+      console.error('Error loading saved files:', error);
+    }
+  };
+
+  const loadFromVercelBlob = async (url) => {
+    setIsLoading(true);
+    setSaveStatus('Loading...');
+
+    try {
+      const response = await fetch(`/api/markbook/load?url=${encodeURIComponent(url)}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const { students: loadedStudents, weeks: loadedWeeks, visibleMetrics: loadedMetrics } = result.data;
+        
+        if (loadedStudents && loadedWeeks) {
+          setStudents(loadedStudents);
+          setWeeks(loadedWeeks);
+          if (loadedMetrics) {
+            setVisibleMetrics(loadedMetrics);
+          }
+          setSaveStatus('Loaded successfully!');
+          setShowSavedFiles(false);
+          setTimeout(() => setSaveStatus(''), 3000);
+        } else {
+          throw new Error('Invalid file format');
+        }
+      } else {
+        throw new Error(result.error || 'Failed to load');
+      }
+    } catch (error) {
+      console.error('Error loading:', error);
+      setSaveStatus('Error loading data');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteFromVercelBlob = async (url) => {
+    if (!confirm('Are you sure you want to delete this saved file? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    setSaveStatus('Deleting...');
+
+    try {
+      const response = await fetch('/api/markbook/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSaveStatus('Deleted successfully!');
+        await loadSavedFiles(); // Refresh the files list
+        setTimeout(() => setSaveStatus(''), 3000);
+      } else {
+        throw new Error(result.error || 'Failed to delete');
+      }
+    } catch (error) {
+      console.error('Error deleting:', error);
+      setSaveStatus('Error deleting file');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const copyDataToClipboard = async () => {
     const data = {
       students,
@@ -76,7 +216,8 @@ const DigitalMarkbook = () => {
     
     try {
       await navigator.clipboard.writeText(jsonString);
-      alert('Data copied to clipboard! Paste it into a text file and save with .json extension');
+      setSaveStatus('Data copied to clipboard!');
+      setTimeout(() => setSaveStatus(''), 3000);
     } catch (err) {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
@@ -85,7 +226,8 @@ const DigitalMarkbook = () => {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      alert('Data copied to clipboard! Paste it into a text file and save with .json extension');
+      setSaveStatus('Data copied to clipboard!');
+      setTimeout(() => setSaveStatus(''), 3000);
     }
   };
 
@@ -102,12 +244,15 @@ const DigitalMarkbook = () => {
             if (data.visibleMetrics) {
               setVisibleMetrics(data.visibleMetrics);
             }
-            alert('Data imported successfully!');
+            setSaveStatus('Data imported successfully!');
+            setTimeout(() => setSaveStatus(''), 3000);
           } else {
-            alert('Invalid file format');
+            setSaveStatus('Invalid file format');
+            setTimeout(() => setSaveStatus(''), 3000);
           }
         } catch (error) {
-          alert('Error reading file');
+          setSaveStatus('Error reading file');
+          setTimeout(() => setSaveStatus(''), 3000);
         }
       };
       reader.readAsText(file);
@@ -213,6 +358,22 @@ const DigitalMarkbook = () => {
     return colors[house] || '#6b7280';
   };
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
@@ -247,6 +408,18 @@ const DigitalMarkbook = () => {
             </div>
           </div>
 
+          {/* Status Message */}
+          {saveStatus && (
+            <div className={`mb-4 p-3 rounded-lg ${
+              saveStatus.includes('Error') || saveStatus.includes('error')
+                ? 'bg-red-100 text-red-800 border border-red-200'
+                : 'bg-green-100 text-green-800 border border-green-200'
+            }`}>
+              {isLoading && <RefreshCw className="w-4 h-4 inline mr-2 animate-spin" />}
+              {saveStatus}
+            </div>
+          )}
+
           {activeView === 'overview' && (
             <>
               <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -254,16 +427,44 @@ const DigitalMarkbook = () => {
                   Track your students&apos; progress with house points, reading, and homework
                 </p>
                 <div className="flex gap-2 flex-wrap">
+                  {/* Cloud Save Section */}
+                  <div className="flex gap-2 items-center bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                    <input
+                      type="text"
+                      value={customFilename}
+                      onChange={(e) => setCustomFilename(e.target.value)}
+                      placeholder="Custom filename (optional)"
+                      className="px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      style={{width: '150px'}}
+                    />
+                    <button
+                      onClick={saveToVercelBlob}
+                      disabled={isLoading}
+                      className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 transition-colors flex items-center gap-1 text-sm disabled:opacity-50"
+                    >
+                      <Cloud className="w-4 h-4" />
+                      Save to Cloud
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowSavedFiles(!showSavedFiles)}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 text-sm"
+                  >
+                    <List className="w-4 h-4" />
+                    {showSavedFiles ? 'Hide' : 'Show'} Saved Files
+                  </button>
+
                   <button
                     onClick={copyDataToClipboard}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 text-sm"
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm"
                   >
                     <Download className="w-4 h-4" />
                     Copy Data
                   </button>
                   <label className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 cursor-pointer text-sm">
                     <Upload className="w-4 h-4" />
-                    Import Data
+                    Import File
                     <input
                       type="file"
                       accept=".json"
@@ -290,6 +491,68 @@ const DigitalMarkbook = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Saved Files Panel - only show if blob is enabled */}
+              {showSavedFiles && (
+                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-indigo-900">Saved Files in Cloud</h3>
+                    <button
+                      onClick={loadSavedFiles}
+                      disabled={isLoading}
+                      className="text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                  
+                  {savedFiles.length === 0 ? (
+                    <p className="text-indigo-700 text-sm">No saved files found. Save your first markbook to get started!</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {savedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {file.filename.replace(/markbook-data\/|\.json/g, '')}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {formatDate(file.uploadedAt)} • {formatFileSize(file.size)}
+                            </div>
+                          </div>
+                          <div className="flex gap-2 ml-4">
+                            <button
+                              onClick={() => loadFromVercelBlob(file.url)}
+                              disabled={isLoading}
+                              className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50"
+                              title="Load this file"
+                            >
+                              <Upload className="w-4 h-4" />
+                            </button>
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              title="Download this file"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => deleteFromVercelBlob(file.url)}
+                              disabled={isLoading}
+                              className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+                              title="Delete this file"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Metric Toggle Controls */}
               <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
